@@ -1,0 +1,53 @@
+name: 'AI Code Reviewer'
+description: 'AI-powered PR reviewer for security, bugs, performance, and best practices using Gemini'
+author: 'Konopl9'
+
+inputs:
+  gemini-api-key:
+    description: 'Google Gemini API key'
+    required: true
+  github-token:
+    description: 'GitHub token for posting reviews'
+    required: false
+    default: ${{ github.token }}
+  review-level:
+    description: 'Review depth: quick, standard, thorough'
+    required: false
+    default: 'standard'
+  categories:
+    description: 'Comma-separated: security,bugs,performance,best-practices'
+    required: false
+    default: 'security,bugs,performance,best-practices'
+  max-comments:
+    description: 'Maximum inline comments to post'
+    required: false
+    default: '10'
+  fail-on:
+    description: 'Severity that triggers REQUEST_CHANGES: critical, warning, info, none'
+    required: false
+    default: 'critical'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install -q google-generativeai PyGithub
+
+    - name: Run AI review
+      shell: bash
+      env:
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REVIEW_LEVEL: ${{ inputs.review-level }}
+        CATEGORIES: ${{ inputs.categories }}
+        MAX_COMMENTS: ${{ inputs.max-comments }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO_FULL_NAME: ${{ github.repository }}
+      run: python ${{ github.action_path }}/reviewer/main.py
