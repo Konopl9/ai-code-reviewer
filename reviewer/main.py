@@ -3,11 +3,14 @@
 import json
 import os
 import sys
+import time
 
 import google.generativeai as genai
 from github import Github, GithubException
 
 REVIEW_LEVEL_TOKENS = {"quick": 1000, "standard": 4000, "thorough": 8000}
+MAX_RETRIES = 3
+RETRY_DELAY = 60
 
 
 def get_pr_diff(gh: Github, repo_name: str, pr_number: int) -> tuple:
@@ -148,7 +151,8 @@ def main():
     max_comments = int(os.environ.get("MAX_COMMENTS", "10"))
     fail_on = os.environ.get("FAIL_ON", "critical")
 
-    # Setup clients
+    # Setup clients — set env var before configure for SDK compatibility
+    os.environ["GOOGLE_API_KEY"] = api_key
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-2.0-flash")
     gh = Github(github_token)
@@ -168,13 +172,27 @@ def main():
     prompt = build_prompt(diff, categories, review_level)
     max_tokens = REVIEW_LEVEL_TOKENS.get(review_level, 4000)
 
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.types.GenerationConfig(
-            max_output_tokens=max_tokens,
-            temperature=0.1,
-        ),
-    )
+    response = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=0.1,
+                ),
+            )
+            break
+        except Exception as e:
+            if "429" in str(e) and attempt < MAX_RETRIES:
+                print(f"⚠️ Rate limited (attempt {attempt}/{MAX_RETRIES}). Retrying in {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+            else:
+                raise
+
+    if response is None:
+        print("⚠️ Failed to get response from Gemini after retries.")
+        return
 
     # Parse response
     text = response.text.strip()
@@ -199,4 +217,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"⚠️ AI Code Reviewer failed (non-blocking): {e}")
+        sys.exit(0)

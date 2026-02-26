@@ -43,6 +43,7 @@ runs:
       shell: bash
       env:
         GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        GOOGLE_API_KEY: ${{ inputs.gemini-api-key }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REVIEW_LEVEL: ${{ inputs.review-level }}
         CATEGORIES: ${{ inputs.categories }}
