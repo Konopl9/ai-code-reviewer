@@ -1,0 +1,49 @@
+name: 'AI Code Reviewer - Security Scanner'
+description: 'Scheduled security scanning for repositories — dependency CVEs, secret detection, configuration audit'
+
+inputs:
+  github-token:
+    description: 'GitHub token with repo access'
+    required: true
+  telegram-bot-token:
+    description: 'Telegram bot token for notifications'
+    required: false
+  telegram-chat-id:
+    description: 'Telegram chat ID for notifications'
+    required: false
+  scan-categories:
+    description: 'Comma-separated scan categories (dependencies, secrets, config)'
+    required: false
+    default: 'dependencies,secrets,config'
+  create-issues:
+    description: 'Create GitHub issues for critical/high findings'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        pip install -r ${{ github.action_path }}/requirements.txt
+        pip install -r ${{ github.action_path }}/scanner/requirements.txt
+
+    - name: Run security scan
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        TELEGRAM_BOT_TOKEN: ${{ inputs.telegram-bot-token }}
+        TELEGRAM_CHAT_ID: ${{ inputs.telegram-chat-id }}
+        SCAN_CATEGORIES: ${{ inputs.scan-categories }}
+        CREATE_ISSUES: ${{ inputs.create-issues }}
+        REPO_NAME: ${{ github.repository }}
+        SCAN_PATH: ${{ github.workspace }}
+      run: |
+        cd ${{ github.action_path }}
+        python -m scanner.main
